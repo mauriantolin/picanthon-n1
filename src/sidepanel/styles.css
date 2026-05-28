@@ -1,0 +1,70 @@
+@import 'tailwindcss';
+
+/* Pull Tailwind utility classes out of streamdown's compiled output so the
+   markdown renderer is styled in our bundle. */
+@source '../../node_modules/streamdown/dist';
+
+/* shadcn-style design tokens (the vocabulary AI Elements components speak).
+   Picanthon runs dark by default with a "picante" pink accent. */
+:root {
+  --radius: 0.625rem;
+  --background: #0f0f12;
+  --foreground: #ececf1;
+  --card: #16161c;
+  --card-foreground: #ececf1;
+  --popover: #16161c;
+  --popover-foreground: #ececf1;
+  --primary: #ff3e7f;
+  --primary-foreground: #ffffff;
+  --secondary: #232330;
+  --secondary-foreground: #ececf1;
+  --muted: #1a1a22;
+  --muted-foreground: #9a9aa6;
+  --accent: #232330;
+  --accent-foreground: #ececf1;
+  --destructive: #ff5470;
+  --border: #2a2a33;
+  --input: #2a2a33;
+  --ring: #ff3e7f;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+}

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+.env
+.env.local
+
+# Claude Code: agent skills are re-fetched via `npx skills add` (see CLAUDE-CODE-SETUP.md).
+# .claude/settings.json IS tracked — it pins the plugins. Only the vendored skill is ignored.
+.agents/
+.claude/skills/
