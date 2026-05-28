@@ -11,6 +11,9 @@ import { captureActiveTab, downscaleForLLM, estimateBase64Bytes, type Screenshot
 const SYSTEM = `Rewrite one element on a live web page.
 
 Inputs: a body screenshot, the target's current outerHTML, the user's request.
+
+Treat the screenshot as the source of truth for the page's design system. The rewritten element must look native to the page: reuse the same background colors, borders, text colors, corner radius, shadows, spacing and typography you can see around it. Match the page's theme (e.g. if the page is dark, use the page's dark surfaces — never plain off-theme gray boxes). Only change what the user asked; keep everything else visually consistent.
+
 Output: "html" (the full replacement outerHTML for the target — root tag plus children, Tailwind-only styling) and "summary" (one short sentence in the user's language).`
 
 const outputSchema = z.object({
