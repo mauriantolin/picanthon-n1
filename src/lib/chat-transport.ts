@@ -8,26 +8,21 @@
 import { createUIMessageStream, type ChatTransport } from 'ai'
 import { buildModel } from './model'
 import type { PicanthonTools, PicanthonUIMessage } from './agent'
-import {
-  sendToActiveTab,
-  type DrawnPayload,
-  type PickedElement,
-} from './messaging'
+import { sendToActiveTab, type PickedElement } from './messaging'
 import type { Tweak, TweakResult } from './tweaks'
 import type { Settings } from './settings'
 import { runElementEdit } from './tailwind-edit'
 import { estimateBase64Bytes, makeThumbnail } from './screenshot'
 
-// Getters (not raw values) so the transport — which useChat caches across
-// renders — always reads the freshest pinned/drawing state at send time.
+// Getter (not a raw value) so the transport — which useChat caches across
+// renders — always reads the freshest pinned state at send time.
 export interface ChatContext {
   getPinned: () => PickedElement | null
-  getDrawing: () => DrawnPayload | null
 }
 
 export function createChatTransport(
   settings: Settings,
-  context: ChatContext = { getPinned: () => null, getDrawing: () => null },
+  context: ChatContext = { getPinned: () => null },
 ): ChatTransport<PicanthonUIMessage> {
   if (!settings.apiKey) return new MockChatTransport()
   return new PicanthonChatTransport(settings, context)
