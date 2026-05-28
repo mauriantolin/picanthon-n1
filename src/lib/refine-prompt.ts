@@ -41,9 +41,6 @@ export async function refineRequest(
           `Picked target outerHTML:\n${pinned.outerHTML}`,
       },
     ],
-    providerOptions: {
-      google: { thinkingConfig: { thinkingLevel: 'low' } },
-    },
     abortSignal,
   })
 

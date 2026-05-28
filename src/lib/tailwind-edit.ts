@@ -92,13 +92,6 @@ export async function runElementEdit(
     system: SYSTEM,
     output: Output.object({ schema: outputSchema }),
     messages: [{ role: 'user', content: userParts }],
-    providerOptions: {
-      google: {
-        thinkingConfig: {
-          thinkingLevel: 'low',
-        },
-      },
-    },
     abortSignal,
   })
 
