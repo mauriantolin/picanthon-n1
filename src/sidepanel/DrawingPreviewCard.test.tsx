@@ -51,7 +51,7 @@ describe('DrawingPreviewCard', () => {
       screenshotAvailable: true,
     }
     const h = mount(
-      <DrawingPreviewCard drawing={drawing} onClear={() => {}} visionCapable={true} />,
+      <DrawingPreviewCard drawing={drawing} onClear={() => {}} />,
     )
     const img = h.container.querySelector(
       'img[data-testid="composite-image"]',
@@ -68,7 +68,7 @@ describe('DrawingPreviewCard', () => {
       screenshotAvailable: false,
     }
     const h = mount(
-      <DrawingPreviewCard drawing={drawing} onClear={() => {}} visionCapable={true} />,
+      <DrawingPreviewCard drawing={drawing} onClear={() => {}} />,
     )
     const pill = h.container.querySelector('[data-testid="no-screenshot-pill"]')
     expect(pill).not.toBeNull()
@@ -78,7 +78,7 @@ describe('DrawingPreviewCard', () => {
 
   it('shows strokes-only with "componiendo" label when compositePng is undefined', () => {
     const h = mount(
-      <DrawingPreviewCard drawing={baseDrawing} onClear={() => {}} visionCapable={true} />,
+      <DrawingPreviewCard drawing={baseDrawing} onClear={() => {}} />,
     )
     const label = h.container.querySelector('[data-testid="composing-label"]')
     expect(label).not.toBeNull()
@@ -101,7 +101,7 @@ describe('DrawingPreviewCard', () => {
       screenshotAvailable: true,
     }
     const h = mount(
-      <DrawingPreviewCard drawing={drawing} onClear={() => {}} visionCapable={true} />,
+      <DrawingPreviewCard drawing={drawing} onClear={() => {}} />,
     )
     const button = h.container.querySelector(
       'button[aria-label="Ampliar previsualización del dibujo"]',
@@ -134,7 +134,7 @@ describe('DrawingPreviewCard', () => {
       screenshotAvailable: true,
     }
     const h = mount(
-      <DrawingPreviewCard drawing={drawing} onClear={() => {}} visionCapable={true} />,
+      <DrawingPreviewCard drawing={drawing} onClear={() => {}} />,
     )
     const pill = h.container.querySelector('[data-testid="size-warning-pill"]')
     expect(pill).not.toBeNull()
@@ -154,7 +154,7 @@ describe('DrawingPreviewCard', () => {
       screenshotAvailable: true,
     }
     const h = mount(
-      <DrawingPreviewCard drawing={drawing} onClear={() => {}} visionCapable={true} />,
+      <DrawingPreviewCard drawing={drawing} onClear={() => {}} />,
     )
     const trigger = h.container.querySelector(
       'button[aria-label="Ampliar previsualización del dibujo"]',
@@ -179,7 +179,7 @@ describe('DrawingPreviewCard', () => {
       screenshotAvailable: true,
     }
     const h = mount(
-      <DrawingPreviewCard drawing={drawing} onClear={() => {}} visionCapable={true} />,
+      <DrawingPreviewCard drawing={drawing} onClear={() => {}} />,
     )
     const trigger = h.container.querySelector(
       'button[aria-label="Ampliar previsualización del dibujo"]',
@@ -206,7 +206,7 @@ describe('DrawingPreviewCard', () => {
       screenshotAvailable: true,
     }
     const h = mount(
-      <DrawingPreviewCard drawing={drawing} onClear={() => {}} visionCapable={true} />,
+      <DrawingPreviewCard drawing={drawing} onClear={() => {}} />,
     )
     const btn = h.container.querySelector(
       'button[aria-label="Ampliar previsualización del dibujo"]',
@@ -221,7 +221,7 @@ describe('DrawingPreviewCard', () => {
   it('calls onClear when the X button is clicked', () => {
     const onClear = vi.fn()
     const h = mount(
-      <DrawingPreviewCard drawing={baseDrawing} onClear={onClear} visionCapable={true} />,
+      <DrawingPreviewCard drawing={baseDrawing} onClear={onClear} />,
     )
     const closeBtn = h.container.querySelector(
       'button[aria-label="Descartar dibujo"]',

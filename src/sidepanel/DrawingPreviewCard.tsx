@@ -7,10 +7,9 @@ const MAX_COMPOSITE_BYTES = 4_500_000
 interface DrawingPreviewCardProps {
   drawing: DrawnPayload
   onClear: () => void
-  visionCapable: boolean
 }
 
-export function DrawingPreviewCard({ drawing, onClear, visionCapable }: DrawingPreviewCardProps) {
+export function DrawingPreviewCard({ drawing, onClear }: DrawingPreviewCardProps) {
   const [zoomOpen, setZoomOpen] = useState(false)
   const count = drawing.coveredElements.length
   const composite = drawing.compositePng
@@ -160,13 +159,6 @@ export function DrawingPreviewCard({ drawing, onClear, visionCapable }: DrawingP
           </div>
         </div>
       </div>
-      {!visionCapable && (
-        <p className="px-1 text-[11px] text-amber-600 dark:text-amber-400">
-          El modelo actual no parece soportar visión: el dibujo se ignorará. Probá
-          con <code className="font-mono">anthropic/claude-sonnet-4.6</code> o un
-          modelo multimodal.
-        </p>
-      )}
 
       {zoomOpen && composite && (
         <DrawingZoomModal

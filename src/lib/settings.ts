@@ -1,23 +1,23 @@
-// Persisted config, stored in chrome.storage.local. Keys never leave the user's
-// browser; they're read only inside the side panel when calling the model.
-// `apiKey` is a Vercel AI Gateway key; `model` is the single vision-capable
-// model used for the one-shot Tailwind edit.
+// Persisted config (chrome.storage.local). Only the gateway API key is user-
+// configurable; the model is locked.
+
+export const MODEL = 'google/gemini-3-pro-preview'
 
 export interface Settings {
   apiKey: string
   model: string
 }
 
-const DEFAULTS: Settings = {
-  apiKey: '',
-  model: 'anthropic/claude-sonnet-4.6',
-}
+const DEFAULTS: Settings = { apiKey: '', model: MODEL }
 
 export async function getSettings(): Promise<Settings> {
-  const stored = await chrome.storage.local.get(DEFAULTS)
-  return { ...DEFAULTS, ...stored } as Settings
+  const stored = await chrome.storage.local.get({ apiKey: '' })
+  return { apiKey: stored.apiKey ?? '', model: MODEL }
 }
 
 export async function saveSettings(patch: Partial<Settings>): Promise<void> {
-  await chrome.storage.local.set(patch)
+  const { model: _ignored, ...rest } = patch
+  await chrome.storage.local.set(rest)
 }
+
+export { DEFAULTS }
