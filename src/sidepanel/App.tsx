@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { isToolUIPart } from 'ai'
 import { getSettings, saveSettings, type Settings } from '@/lib/settings'
@@ -95,9 +95,25 @@ function Chat({ settings }: { settings: Settings }) {
   const [drawing, setDrawing] = useState<DrawnPayload | null>(null)
   const [drawingActive, setDrawingActive] = useState(false)
 
+  // Refs let the (memoized) transport always read the latest pinned/drawing at
+  // send time. Without them useChat would capture the first transport instance
+  // (built when pinned was null) and never see later picks.
+  const pinnedRef = useRef<PickedElement | null>(null)
+  const drawingRef = useRef<DrawnPayload | null>(null)
+  useEffect(() => {
+    pinnedRef.current = pinned
+  }, [pinned])
+  useEffect(() => {
+    drawingRef.current = drawing
+  }, [drawing])
+
   const transport = useMemo(
-    () => createChatTransport(settings, { pinned, drawing }),
-    [settings, pinned, drawing],
+    () =>
+      createChatTransport(settings, {
+        getPinned: () => pinnedRef.current,
+        getDrawing: () => drawingRef.current,
+      }),
+    [settings],
   )
   const { messages, sendMessage, status, error } = useChat<PicanthonUIMessage>({
     transport,

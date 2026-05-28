@@ -17,14 +17,16 @@ import type { Tweak, TweakResult } from './tweaks'
 import type { Settings } from './settings'
 import { runTailwindEdit } from './tailwind-edit'
 
+// Getters (not raw values) so the transport — which useChat caches across
+// renders — always reads the freshest pinned/drawing state at send time.
 export interface ChatContext {
-  pinned: PickedElement | null
-  drawing: DrawnPayload | null
+  getPinned: () => PickedElement | null
+  getDrawing: () => DrawnPayload | null
 }
 
 export function createChatTransport(
   settings: Settings,
-  context: ChatContext = { pinned: null, drawing: null },
+  context: ChatContext = { getPinned: () => null, getDrawing: () => null },
 ): ChatTransport<PicanthonUIMessage> {
   if (!settings.apiKey) return new MockChatTransport()
   return new PicanthonChatTransport(settings, context)
@@ -41,7 +43,7 @@ class PicanthonChatTransport implements ChatTransport<PicanthonUIMessage> {
     abortSignal,
   }: Parameters<ChatTransport<PicanthonUIMessage>['sendMessages']>[0]) {
     const userText = lastUserText(messages)
-    const pinned = this.ctx.pinned
+    const pinned = this.ctx.getPinned()
     const settings = this.settings
 
     return createUIMessageStream<PicanthonUIMessage>({
