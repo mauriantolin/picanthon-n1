@@ -1,31 +1,38 @@
-// One-shot Tailwind edit: a single LLM call takes a full-page screenshot plus
-// the picked element's outerHTML and returns the new class string.
+// One-shot element edit: ONE LLM call that takes a body screenshot + the
+// picked element's outerHTML and returns the new outerHTML for that element.
+// The replacement can be a class-only tweak or a full restructure (e.g. a
+// <table> rewritten as a grid of cards) — same contract either way.
 
 import { generateText, Output, type LanguageModel } from 'ai'
 import { z } from 'zod'
 import type { PickedElement } from './messaging'
-import { captureFullPage, type Screenshot } from './screenshot'
+import { captureActiveTab, downscaleForLLM, estimateBase64Bytes, type Screenshot } from './screenshot'
 
-const SYSTEM = `You edit a live Tailwind-styled page. Inputs: full-page screenshot, target outerHTML, user request.
+const SYSTEM = `Rewrite one element on a live web page.
 
-Return "classes" (full replacement for the target's class attribute, Tailwind only) and "summary" (one short sentence in the user's language).
-
-Rules: Tailwind only, no inline styles. Match the screenshot's palette/scale. Minimal diff — preserve layout/data-*/state classes unrelated to the request. Keep accessible contrast.`
+Inputs: a body screenshot, the target's current outerHTML, the user's request.
+Output: "html" (the full replacement outerHTML for the target — root tag plus children, Tailwind-only styling) and "summary" (one short sentence in the user's language).`
 
 const outputSchema = z.object({
-  classes: z.string().describe("Full replacement class attribute (Tailwind, space-separated)."),
-  summary: z.string().describe("One short sentence in the user's language."),
+  html: z
+    .string()
+    .describe(
+      "The full replacement outerHTML for the target element — must be a single root element, Tailwind classes only.",
+    ),
+  summary: z
+    .string()
+    .describe('One short sentence telling the user what changed, in their language.'),
 })
 
-export interface TailwindEditResult {
+export interface ElementEditResult {
   selector: string
-  oldClasses: string
-  newClasses: string
+  oldOuterHTML: string
+  newOuterHTML: string
   summary: string
 }
 
-export interface TailwindEditOutcome {
-  result: TailwindEditResult
+export interface ElementEditOutcome {
+  result: ElementEditResult
   bodyShot: Screenshot | null
 }
 
@@ -34,14 +41,14 @@ export function extractClassAttr(outerHTML: string): string {
   return m ? m[1] : ''
 }
 
-export async function runTailwindEdit(
+export async function runElementEdit(
   model: LanguageModel,
   pinned: PickedElement,
   request: string,
   abortSignal?: AbortSignal,
-): Promise<TailwindEditOutcome> {
-  const bodyShot = await captureFullPage().catch(() => null)
-  const oldClasses = extractClassAttr(pinned.outerHTML)
+): Promise<ElementEditOutcome> {
+  const rawShot = await captureActiveTab().catch(() => null)
+  const bodyShot = rawShot ? await downscaleForLLM(rawShot) : null
 
   const userParts: Array<
     | { type: 'text'; text: string }
@@ -59,10 +66,25 @@ export async function runTailwindEdit(
   userParts.push({
     type: 'text',
     text:
-      `Request: ${request}\n` +
-      `Target: ${pinned.selector} <${pinned.tag}>\n` +
-      `Current classes: ${oldClasses || '(empty)'}\n` +
-      `outerHTML:\n${pinned.outerHTML}`,
+      `User request: ${request}\n\n` +
+      `Target selector: ${pinned.selector}\n` +
+      `Target tag: <${pinned.tag}>\n\n` +
+      `Target outerHTML:\n${pinned.outerHTML}`,
+  })
+
+  console.info('[picanthon] sending to LLM', {
+    request,
+    selector: pinned.selector,
+    tag: pinned.tag,
+    outerHTMLChars: pinned.outerHTML.length,
+    screenshot: bodyShot
+      ? { mediaType: bodyShot.mediaType, bytes: estimateBase64Bytes(bodyShot.data) }
+      : null,
+    parts: userParts.map((p) =>
+      p.type === 'image'
+        ? { type: 'image', mediaType: p.mediaType, bytes: estimateBase64Bytes(p.image) }
+        : { type: 'text', chars: p.text.length },
+    ),
   })
 
   const { output } = await generateText({
@@ -70,14 +92,21 @@ export async function runTailwindEdit(
     system: SYSTEM,
     output: Output.object({ schema: outputSchema }),
     messages: [{ role: 'user', content: userParts }],
+    providerOptions: {
+      google: {
+        thinkingConfig: {
+          thinkingLevel: 'low',
+        },
+      },
+    },
     abortSignal,
   })
 
   return {
     result: {
       selector: pinned.selector,
-      oldClasses,
-      newClasses: output.classes.trim(),
+      oldOuterHTML: pinned.outerHTML,
+      newOuterHTML: output.html.trim(),
       summary: output.summary.trim(),
     },
     bodyShot,

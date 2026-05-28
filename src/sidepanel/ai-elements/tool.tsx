@@ -94,15 +94,66 @@ export function ToolContent({ children }: { children: React.ReactNode }) {
   return <div className="border-t border-border">{children}</div>
 }
 
-export function ToolInput({ input }: { input: unknown }) {
+export function ToolInput({
+  input,
+  running = false,
+}: {
+  input: unknown
+  running?: boolean
+}) {
+  const pretty = pickEditElementInput(input)
+  if (pretty) {
+    return (
+      <div className="space-y-1.5 px-3 py-2.5 text-xs">
+        <div>
+          <span className="text-muted-foreground">Pedido:</span>{' '}
+          <span className="text-foreground">{pretty.request || '(vacío)'}</span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Target:</span>{' '}
+          <code className="font-mono text-[11px] text-foreground">{pretty.selector}</code>
+        </div>
+        {running && (
+          <div className="pt-1 text-[11px] text-muted-foreground">
+            Pensando y generando el HTML reemplazo…
+          </div>
+        )}
+      </div>
+    )
+  }
   return (
     <div className="px-3 py-2.5">
       <p className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">Input</p>
-      <pre className="whitespace-pre-wrap break-words rounded bg-background p-2.5 font-mono text-[11px] leading-relaxed text-foreground">
+      <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded bg-background p-2.5 font-mono text-[11px] leading-relaxed text-foreground">
         {JSON.stringify(input, null, 2)}
       </pre>
     </div>
   )
+}
+
+function pickEditElementInput(
+  input: unknown,
+): { request: string; selector: string } | null {
+  if (!input || typeof input !== 'object') return null
+  const o = input as Record<string, unknown>
+  if (typeof o.request !== 'string' || typeof o.selector !== 'string') return null
+  return { request: o.request, selector: o.selector }
+}
+
+interface ScreenshotPreview {
+  data: string
+  mediaType: string
+  width?: number
+  height?: number
+}
+
+function extractScreenshot(output: unknown): ScreenshotPreview | null {
+  if (!output || typeof output !== 'object') return null
+  const shot = (output as { screenshot?: unknown }).screenshot
+  if (!shot || typeof shot !== 'object') return null
+  const s = shot as Partial<ScreenshotPreview>
+  if (typeof s.data !== 'string' || typeof s.mediaType !== 'string') return null
+  return { data: s.data, mediaType: s.mediaType, width: s.width, height: s.height }
 }
 
 export function ToolOutput({
@@ -118,11 +169,28 @@ export function ToolOutput({
     )
   }
   if (output === undefined) return null
+  const screenshot = extractScreenshot(output)
+  const outputForJson =
+    screenshot && output && typeof output === 'object'
+      ? { ...(output as Record<string, unknown>), screenshot: '[image — see preview above]' }
+      : output
   return (
     <div className="px-3 py-2.5">
+      {screenshot && (
+        <div className="mb-2">
+          <p className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            Screenshot enviado al modelo
+          </p>
+          <img
+            src={`data:${screenshot.mediaType};base64,${screenshot.data}`}
+            alt="Screenshot enviado al modelo"
+            className="max-h-64 w-full rounded border border-border object-contain"
+          />
+        </div>
+      )}
       <p className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">Output</p>
-      <pre className="whitespace-pre-wrap break-words rounded bg-background p-2.5 font-mono text-[11px] leading-relaxed text-foreground">
-        {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
+      <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded bg-background p-2.5 font-mono text-[11px] leading-relaxed text-foreground">
+        {typeof outputForJson === 'string' ? outputForJson : JSON.stringify(outputForJson, null, 2)}
       </pre>
     </div>
   )

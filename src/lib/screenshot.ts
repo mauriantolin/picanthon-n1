@@ -21,16 +21,19 @@ export async function captureActiveTab(): Promise<Screenshot | null> {
       console.debug('[picanthon/shot] captureActiveTab: no active tab windowId')
       return null
     }
-    // PNG is lossless and avoids JPEG artifacts on UI screenshots.
+    // JPEG q=0.7 instead of PNG: a typical retina viewport PNG is 2–4 MB and
+    // dominates the round-trip latency to Gemini; JPEG cuts that ~10× with no
+    // visible quality loss for the design-system cues the model needs.
     const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-      format: 'png',
+      format: 'jpeg',
+      quality: 70,
     })
     const comma = dataUrl.indexOf(',')
     if (comma === -1) {
       console.debug('[picanthon/shot] captureActiveTab: malformed dataUrl')
       return null
     }
-    return { data: dataUrl.slice(comma + 1), mediaType: 'image/png' }
+    return { data: dataUrl.slice(comma + 1), mediaType: 'image/jpeg' }
   } catch (err) {
     console.warn('[picanthon/shot] captureActiveTab failed:', err)
     return null
@@ -259,4 +262,67 @@ export function estimateBase64Bytes(data: string): number {
   const comma = data.indexOf(',')
   const len = comma === -1 ? data.length : data.length - comma - 1
   return Math.floor((len * 3) / 4)
+}
+
+const LLM_MAX_EDGE = 1280
+const LLM_JPEG_QUALITY = 0.7
+
+// Downscale the captured tab screenshot before sending it to the LLM. Retina
+// captures are often 2880×1800; nothing the model uses (palette, scale,
+// hierarchy) needs more than ~1280px long edge. Cuts upload + image-processing
+// time substantially without hurting quality.
+export async function downscaleForLLM(shot: Screenshot): Promise<Screenshot> {
+  try {
+    const img = await loadImage(`data:${shot.mediaType};base64,${shot.data}`)
+    if (Math.max(img.naturalWidth, img.naturalHeight) <= LLM_MAX_EDGE) return shot
+    const scale = LLM_MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight)
+    const w = Math.max(1, Math.round(img.naturalWidth * scale))
+    const h = Math.max(1, Math.round(img.naturalHeight * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return shot
+    ctx.drawImage(img, 0, 0, w, h)
+    const jpeg = canvas.toDataURL('image/jpeg', LLM_JPEG_QUALITY)
+    return { data: stripDataPrefix(jpeg), mediaType: 'image/jpeg' }
+  } catch (err) {
+    console.warn('[picanthon] downscaleForLLM failed:', err)
+    return shot
+  }
+}
+
+const THUMB_MAX_EDGE = 480
+const THUMB_JPEG_QUALITY = 0.7
+
+export interface Thumbnail {
+  data: string
+  mediaType: 'image/jpeg'
+  width: number
+  height: number
+}
+
+// Downscale a captured screenshot to a small JPEG for the chat UI preview.
+// Purely for keeping message history light.
+export async function makeThumbnail(
+  data: string,
+  mediaType: 'image/png' | 'image/jpeg' = 'image/jpeg',
+): Promise<Thumbnail | null> {
+  try {
+    const img = await loadImage(`data:${mediaType};base64,${data}`)
+    const scale = Math.min(1, THUMB_MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight))
+    const w = Math.max(1, Math.round(img.naturalWidth * scale))
+    const h = Math.max(1, Math.round(img.naturalHeight * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(img, 0, 0, w, h)
+    const jpeg = canvas.toDataURL('image/jpeg', THUMB_JPEG_QUALITY)
+    return { data: stripDataPrefix(jpeg), mediaType: 'image/jpeg', width: w, height: h }
+  } catch (err) {
+    console.warn('[picanthon] makeThumbnail failed:', err)
+    return null
+  }
 }

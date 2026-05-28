@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { isToolUIPart } from 'ai'
-import { getSettings, saveSettings, MODEL, type Settings } from '@/lib/settings'
+import { getSettings, saveSettings, type Settings } from '@/lib/settings'
 import {
   sendToActiveTab,
   type DrawnPayload,
@@ -81,7 +81,7 @@ export function App() {
       )}
 
       {/* Remounting on key change rebuilds the transport when settings change. */}
-      <ErrorBoundary key={settings.apiKey}>
+      <ErrorBoundary key={`${settings.apiKey}:${settings.model}`}>
         <Chat settings={settings} />
       </ErrorBoundary>
     </div>
@@ -115,7 +115,7 @@ function Chat({ settings }: { settings: Settings }) {
       }),
     [settings],
   )
-  const { messages, sendMessage, status, error } = useChat<PicanthonUIMessage>({
+  const { messages, sendMessage, stop, status, error } = useChat<PicanthonUIMessage>({
     transport,
     onError: (err) => console.error('Picanthon chat error:', err),
   })
@@ -151,7 +151,17 @@ function Chat({ settings }: { settings: Settings }) {
     setDrawingActive(false)
     try {
       const result = await sendToActiveTab<PickResult>({ type: 'START_PICK' })
-      if (!('cancelled' in result)) setPinned(result)
+      if ('cancelled' in result) {
+        console.info('[picanthon/picker] cancelled')
+      } else {
+        console.info('[picanthon/picker] picked', {
+          selector: result.selector,
+          tag: result.tag,
+          outerHtmlBytes: result.outerHTML.length,
+          bbox: result.boundingBox,
+        })
+        setPinned(result)
+      }
     } catch (err) {
       console.warn('Picanthon picker error:', err)
     } finally {
@@ -211,17 +221,11 @@ function Chat({ settings }: { settings: Settings }) {
                   const key = `${message.id}-${i}`
 
                   if (part.type === 'text') {
-                    // The transport opens the text part (text-start) before the
-                    // tool call, so it sits empty in parts[] until deltas arrive.
-                    // Rendering it would leave a phantom Response whose flex gap
-                    // shows up as dead space before the next bubble.
-                    if (!part.text.trim()) return null
                     return <Response key={key}>{part.text}</Response>
                   }
 
                   if (part.type === 'reasoning') {
                     const streaming = 'state' in part && part.state === 'streaming'
-                    if (!part.text.trim() && !streaming) return null
                     return (
                       <Reasoning key={key} isStreaming={streaming}>
                         <ReasoningTrigger />
@@ -236,11 +240,17 @@ function Chat({ settings }: { settings: Settings }) {
                       part.state === 'input-available' ||
                       part.state === 'output-available' ||
                       part.state === 'output-error'
+                    const running = part.state === 'input-available'
                     return (
-                      <Tool key={key}>
+                      <Tool key={key} defaultOpen={false}>
                         <ToolHeader type={name} state={part.state} />
                         <ToolContent>
-                          {hasInput && <ToolInput input={part.input} />}
+                          {hasInput && (
+                            <ToolInput
+                              input={part.input}
+                              running={running}
+                            />
+                          )}
                           {part.state === 'output-available' && (
                             <ToolOutput output={part.output} />
                           )}
@@ -272,7 +282,10 @@ function Chat({ settings }: { settings: Settings }) {
 
       {pinned && <PinnedElementCard pin={pinned} onClear={() => setPinned(null)} />}
       {drawing && (
-        <DrawingPreviewCard drawing={drawing} onClear={() => setDrawing(null)} />
+        <DrawingPreviewCard
+          drawing={drawing}
+          onClear={() => setDrawing(null)}
+        />
       )}
 
       <PromptInput onSubmit={onSubmit}>
@@ -283,13 +296,14 @@ function Chat({ settings }: { settings: Settings }) {
         />
         <PromptInputToolbar>
           <span className="text-[11px] text-muted-foreground">
-            {settings.apiKey ? MODEL : 'modo mock (sin API key)'}
+            {settings.apiKey ? settings.model : 'modo mock (sin API key)'}
           </span>
           <div className="ml-auto flex items-center gap-2">
             <ScribbleButton active={drawingActive} onClick={toggleScribble} />
             <PickerButton active={picking} onClick={togglePicker} />
             <PromptInputSubmit
               status={status}
+              onStop={stop}
               disabled={!input.trim() && !drawing}
             />
           </div>
@@ -417,10 +431,12 @@ function SettingsPanel({
   onSave: (s: Settings) => void
 }) {
   const [apiKey, setApiKey] = useState(settings.apiKey)
+  const [model, setModel] = useState(settings.model)
 
   async function persist() {
-    await saveSettings({ apiKey })
-    onSave({ apiKey, model: MODEL })
+    const next: Settings = { apiKey, model }
+    await saveSettings(next)
+    onSave(next)
   }
 
   return (
@@ -435,15 +451,24 @@ function SettingsPanel({
           className="rounded-md border border-input bg-background p-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
         />
       </label>
-      <p className="text-[11px] text-muted-foreground">
-        Modelo: <code className="font-mono">{MODEL}</code>
-      </p>
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+        Model (vision-capable)
+        <input
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          placeholder="google/gemini-3-pro-preview"
+          className="rounded-md border border-input bg-background p-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+        />
+      </label>
       <button
         onClick={persist}
         className="mt-1 self-start rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
       >
         Guardar
       </button>
+      <p className="text-[11px] text-muted-foreground">
+        ¿Sin key? Modo mock para probar la UI. Un único modelo: hace 1 sola llamada por edición.
+      </p>
     </section>
   )
 }

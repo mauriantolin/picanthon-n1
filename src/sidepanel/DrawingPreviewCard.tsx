@@ -159,7 +159,6 @@ export function DrawingPreviewCard({ drawing, onClear }: DrawingPreviewCardProps
           </div>
         </div>
       </div>
-
       {zoomOpen && composite && (
         <DrawingZoomModal
           src={compositeSrc!}

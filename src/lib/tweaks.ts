@@ -10,6 +10,7 @@ export type Tweak =
   | { op: 'removeClass'; selector: string; className: string }
   | { op: 'remove'; selector: string }
   | { op: 'insertHTML'; selector: string; position: InsertPosition; html: string }
+  | { op: 'replaceOuterHTML'; selector: string; html: string }
   | { op: 'highlight'; selector: string; color?: string }
 
 export interface TweakResult {
@@ -56,6 +57,9 @@ function applyOne(el: HTMLElement, tweak: Tweak): void {
       break
     case 'insertHTML':
       el.insertAdjacentHTML(tweak.position, tweak.html)
+      break
+    case 'replaceOuterHTML':
+      el.outerHTML = tweak.html
       break
     case 'highlight':
       el.style.setProperty('outline', `3px solid ${tweak.color ?? '#ff3e7f'}`)

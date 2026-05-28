@@ -55,21 +55,39 @@ export function PromptInputToolbar({ className, ...props }: ComponentProps<'div'
 export function PromptInputSubmit({
   status = 'ready',
   disabled,
+  onStop,
   className,
   ...props
-}: ComponentProps<'button'> & { status?: ChatStatus }) {
+}: ComponentProps<'button'> & { status?: ChatStatus; onStop?: () => void }) {
   const busy = status === 'submitted' || status === 'streaming'
+  if (busy) {
+    return (
+      <button
+        type="button"
+        onClick={onStop}
+        title="Cancelar"
+        aria-label="Cancelar"
+        className={cn(
+          'ml-auto inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-muted',
+          className,
+        )}
+      >
+        <span aria-hidden className="block h-3 w-3 rounded-[2px] bg-foreground" />
+        Detener
+      </button>
+    )
+  }
   return (
     <button
       type="submit"
-      disabled={disabled || busy}
+      disabled={disabled}
       className={cn(
         'ml-auto rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity disabled:cursor-default disabled:opacity-50',
         className,
       )}
       {...props}
     >
-      {busy ? '…' : 'Enviar'}
+      Enviar
     </button>
   )
 }
