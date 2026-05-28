@@ -4,15 +4,12 @@ import { isToolUIPart } from 'ai'
 import { getSettings, saveSettings, type Settings } from '@/lib/settings'
 import {
   sendToActiveTab,
-  type DrawnPayload,
-  type DrawResult,
   type PickedElement,
   type PickResult,
 } from '@/lib/messaging'
 import { createChatTransport } from '@/lib/chat-transport'
 import type { PicanthonUIMessage } from '@/lib/agent'
 import { ErrorBoundary } from './ErrorBoundary'
-import { DrawingPreviewCard } from './DrawingPreviewCard'
 import {
   Conversation,
   ConversationContent,
@@ -92,26 +89,19 @@ function Chat({ settings }: { settings: Settings }) {
   const [input, setInput] = useState('')
   const [pinned, setPinned] = useState<PickedElement | null>(null)
   const [picking, setPicking] = useState(false)
-  const [drawing, setDrawing] = useState<DrawnPayload | null>(null)
-  const [drawingActive, setDrawingActive] = useState(false)
 
-  // Refs let the (memoized) transport always read the latest pinned/drawing at
-  // send time. Without them useChat would capture the first transport instance
+  // A ref lets the (memoized) transport always read the latest pinned target at
+  // send time. Without it useChat would capture the first transport instance
   // (built when pinned was null) and never see later picks.
   const pinnedRef = useRef<PickedElement | null>(null)
-  const drawingRef = useRef<DrawnPayload | null>(null)
   useEffect(() => {
     pinnedRef.current = pinned
   }, [pinned])
-  useEffect(() => {
-    drawingRef.current = drawing
-  }, [drawing])
 
   const transport = useMemo(
     () =>
       createChatTransport(settings, {
         getPinned: () => pinnedRef.current,
-        getDrawing: () => drawingRef.current,
       }),
     [settings],
   )
@@ -120,8 +110,8 @@ function Chat({ settings }: { settings: Settings }) {
     onError: (err) => console.error('Picanthon chat error:', err),
   })
 
-  // Clear the pin and drawing when the active tab navigates — the selector
-  // would no longer resolve and the screenshot would be of a different page.
+  // Clear the pin when the active tab navigates — the selector would no longer
+  // resolve and the screenshot would be of a different page.
   useEffect(() => {
     function onTabUpdated(
       _tabId: number,
@@ -130,7 +120,6 @@ function Chat({ settings }: { settings: Settings }) {
     ) {
       if (change.status === 'loading' || change.url) {
         setPinned(null)
-        setDrawing(null)
       }
     }
     chrome.tabs?.onUpdated.addListener(onTabUpdated)
@@ -148,7 +137,6 @@ function Chat({ settings }: { settings: Settings }) {
       return
     }
     setPicking(true)
-    setDrawingActive(false)
     try {
       const result = await sendToActiveTab<PickResult>({ type: 'START_PICK' })
       if ('cancelled' in result) {
@@ -169,38 +157,13 @@ function Chat({ settings }: { settings: Settings }) {
     }
   }
 
-  async function toggleScribble() {
-    if (drawingActive) {
-      try {
-        await sendToActiveTab({ type: 'CANCEL_DRAW' })
-      } catch {
-        /* tab may have no content script */
-      }
-      setDrawingActive(false)
-      return
-    }
-    setDrawingActive(true)
-    setPicking(false)
-    try {
-      const result = await sendToActiveTab<DrawResult>({ type: 'START_DRAW' })
-      if (!('cancelled' in result)) setDrawing(result)
-    } catch (err) {
-      console.warn('Picanthon scribble error:', err)
-    } finally {
-      setDrawingActive(false)
-    }
-  }
-
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (status === 'streaming' || status === 'submitted') return
     const text = input.trim()
-    // With a drawing the text is optional — the gesture is the input.
-    if (!text && !drawing) return
-    sendMessage({ text: text || '(sin texto, interpretá el dibujo)' })
+    if (!text) return
+    sendMessage({ text })
     setInput('')
-    // One-shot: the drawing belongs to this single turn.
-    setDrawing(null)
   }
 
   return (
@@ -281,74 +244,24 @@ function Chat({ settings }: { settings: Settings }) {
       </Conversation>
 
       {pinned && <PinnedElementCard pin={pinned} onClear={() => setPinned(null)} />}
-      {drawing && (
-        <DrawingPreviewCard
-          drawing={drawing}
-          onClear={() => setDrawing(null)}
-        />
-      )}
 
       <PromptInput onSubmit={onSubmit}>
         <PromptInputTextarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={drawing ? 'Describí el dibujo (opcional)…' : 'Describí un cambio…'}
+          placeholder="Describí un cambio…"
         />
         <PromptInputToolbar>
           <span className="text-[11px] text-muted-foreground">
             {settings.apiKey ? settings.model : 'modo mock (sin API key)'}
           </span>
           <div className="ml-auto flex items-center gap-2">
-            <ScribbleButton active={drawingActive} onClick={toggleScribble} />
             <PickerButton active={picking} onClick={togglePicker} />
-            <PromptInputSubmit
-              status={status}
-              onStop={stop}
-              disabled={!input.trim() && !drawing}
-            />
+            <PromptInputSubmit status={status} onStop={stop} disabled={!input.trim()} />
           </div>
         </PromptInputToolbar>
       </PromptInput>
     </>
-  )
-}
-
-function ScribbleButton({
-  active,
-  onClick,
-}: {
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={active ? 'Cancelar dibujo' : 'Dibujar sobre la página'}
-      aria-pressed={active}
-      className={
-        'inline-flex h-8 w-8 items-center justify-center rounded-lg border text-foreground transition-colors ' +
-        (active
-          ? 'border-primary bg-primary/10 text-primary'
-          : 'border-input bg-background hover:bg-muted')
-      }
-    >
-      <svg
-        viewBox="0 0 24 24"
-        width="16"
-        height="16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M12 19l7-7 3 3-7 7-3-3z" />
-        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
-        <path d="M2 2l7.586 7.586" />
-        <circle cx="11" cy="11" r="2" />
-      </svg>
-    </button>
   )
 }
 

@@ -1,14 +1,12 @@
 // Content script (ISOLATED world): the only context with direct DOM access.
 // Handles GET_SNAPSHOT (page context for diagnostics), APPLY_TWEAKS (single
-// setAttr from the Tailwind editor), CLEAR_TWEAKS, the picker, and the
-// scribble overlay. Persisted tweaks are restored on page load so changes
-// survive reloads.
+// setAttr from the Tailwind editor), CLEAR_TWEAKS, and the picker. Persisted
+// tweaks are restored on page load so changes survive reloads.
 
 import type { Message } from '@/lib/messaging'
 import { clearTweaks, loadTweaks, saveTweaks } from '@/lib/persisted-tweaks'
 import { buildSnapshot, captureAffected } from './page-context'
 import { cancelPick, startPick } from './picker'
-import { cancelDraw, startDraw } from './scribble'
 import { TweakPersistence } from './persistence'
 
 const persistence = new TweakPersistence()
@@ -40,22 +38,11 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
       return true
 
     case 'START_PICK':
-      cancelDraw()
       startPick().then(sendResponse)
       return true
 
     case 'CANCEL_PICK':
       cancelPick()
-      sendResponse({ ok: true })
-      return true
-
-    case 'START_DRAW':
-      cancelPick()
-      startDraw().then(sendResponse)
-      return true
-
-    case 'CANCEL_DRAW':
-      cancelDraw()
       sendResponse({ ok: true })
       return true
 

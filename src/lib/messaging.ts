@@ -102,42 +102,6 @@ export interface PickedElement {
 // if the user pressed ESC or the picker was cancelled programmatically.
 export type PickResult = PickedElement | { cancelled: true }
 
-// One element that the user's strokes intersected, with coverage in [0..1].
-export interface DrawnElement {
-  selector: string
-  tag: string
-  coverage: number
-}
-
-// Bounding box of all strokes in viewport coordinates.
-export interface StrokesBBox {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-// Payload returned by the scribble overlay when the user confirms.
-// `compositePng` and `screenshotAvailable` are filled in later by the side
-// panel after `chrome.tabs.captureVisibleTab` + `compositeWithStrokes`.
-// Both fields are optional so the content script (which can't reach
-// chrome.tabs) can still produce a valid payload synchronously.
-export interface DrawnPayload {
-  strokesPng: string // base64, no `data:` prefix
-  bbox: StrokesBBox
-  viewport: { width: number; height: number }
-  coveredElements: DrawnElement[]
-  compositePng?: {
-    data: string // base64, no `data:` prefix
-    mediaType: 'image/png' | 'image/jpeg'
-    width: number
-    height: number
-  }
-  screenshotAvailable?: boolean
-}
-
-export type DrawResult = DrawnPayload | { cancelled: true }
-
 // side panel -> content
 export interface GetSnapshotMsg {
   type: 'GET_SNAPSHOT'
@@ -157,12 +121,6 @@ export interface StartPickMsg {
 }
 export interface CancelPickMsg {
   type: 'CANCEL_PICK'
-}
-export interface StartDrawMsg {
-  type: 'START_DRAW'
-}
-export interface CancelDrawMsg {
-  type: 'CANCEL_DRAW'
 }
 
 // Full-page screenshot pipeline. The side panel orchestrates the loop
@@ -248,8 +206,6 @@ export type Message =
   | ClearTweaksMsg
   | StartPickMsg
   | CancelPickMsg
-  | StartDrawMsg
-  | CancelDrawMsg
   | CaptureAffectedMsg
   | BeginFullCaptureMsg
   | ScrollToMsg
