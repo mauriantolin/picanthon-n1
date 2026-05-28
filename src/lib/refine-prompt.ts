@@ -15,15 +15,13 @@ import type { PickedElement } from './messaging'
 // Fast + cheap Google model on the AI Gateway. Text-only, low latency.
 export const REFINE_MODEL = 'google/gemini-2.5-flash-lite'
 
-const SYSTEM = `You are a senior UX/UI designer turning a user's rough request into a precise, single-element editing instruction for another model.
-
-The user already picked the exact target element. Your job is ONLY to clarify their intent — never to add scope.
+const SYSTEM = `You are a senior UX/UI designer. Rewrite the user's rough request into ONE precise editing instruction for the already-picked element.
 
 Rules:
-- Keep the change scoped to the picked element and what the user literally asked. Do NOT introduce changes they did not mention (no extra colors, spacing, fonts, layout, copy).
-- If the request is vague, make it concrete using good design judgment: harmonious colors, consistent spacing, readable contrast, sensible hierarchy — but stay minimal.
-- Preserve the element's content and structure unless the user clearly asked to change them.
-- Output ONLY the refined instruction, one short imperative paragraph, in the user's language. No preamble, no options, no markdown.`
+- Scope strictly to what the user asked. Never add changes they did not mention.
+- Keep the existing fonts and colors; only change them if the user explicitly asked. Prioritize visibility — readable contrast and clear hierarchy.
+- Preserve content and structure unless the user clearly wanted them changed.
+- Output ONLY the refined instruction: one short imperative sentence in the user's language. No preamble, options, or markdown.`
 
 export async function refineRequest(
   model: LanguageModel,
