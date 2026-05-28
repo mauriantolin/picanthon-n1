@@ -87,16 +87,6 @@ export interface PageSnapshot {
   elements: ElementInfo[]
 }
 
-// Result of a component replacement, returned to the agent.
-export interface ReplaceResult {
-  ok: boolean
-  mountId?: string
-  rows?: number
-  columns?: string[]
-  source?: 'network' | 'dom'
-  error?: string
-}
-
 // Payload returned by the page picker. The selector resolves to this element
 // at pick time; it may become stale later if the page repaints.
 export interface PickedElement {
@@ -159,24 +149,8 @@ export interface ApplyTweaksMsg {
 export interface GetNetworkCaptureMsg {
   type: 'GET_NETWORK_CAPTURE'
 }
-export interface ReplaceComponentMsg {
-  type: 'REPLACE_COMPONENT'
-  selector: string
-  componentId: string
-}
 export interface ClearTweaksMsg {
   type: 'CLEAR_TWEAKS'
-}
-// Extract the data backing an element (correlated capture or DOM scrape).
-export interface GetElementDataMsg {
-  type: 'GET_ELEMENT_DATA'
-  selector: string
-}
-// Mount a sanitized, self-contained HTML fragment (model-generated) in a Shadow DOM.
-export interface MountHtmlMsg {
-  type: 'MOUNT_HTML'
-  selector: string
-  html: string
 }
 export interface StartPickMsg {
   type: 'START_PICK'
@@ -229,10 +203,7 @@ export type Message =
   | GetSnapshotMsg
   | ApplyTweaksMsg
   | GetNetworkCaptureMsg
-  | ReplaceComponentMsg
   | ClearTweaksMsg
-  | GetElementDataMsg
-  | MountHtmlMsg
   | StartPickMsg
   | CancelPickMsg
   | StartDrawMsg

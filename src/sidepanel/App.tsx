@@ -10,7 +10,6 @@ import {
   type PickResult,
 } from '@/lib/messaging'
 import { createChatTransport } from '@/lib/chat-transport'
-import { enrichWithComposite } from '@/lib/composite-cache'
 import type { PicanthonUIMessage } from '@/lib/agent'
 import { ErrorBoundary } from './ErrorBoundary'
 import { DrawingPreviewCard } from './DrawingPreviewCard'
@@ -82,7 +81,7 @@ export function App() {
       )}
 
       {/* Remounting on key change rebuilds the transport when settings change. */}
-      <ErrorBoundary key={`${settings.apiKey}:${settings.model}:${settings.designerModel}`}>
+      <ErrorBoundary key={`${settings.apiKey}:${settings.model}`}>
         <Chat settings={settings} />
       </ErrorBoundary>
     </div>
@@ -158,24 +157,12 @@ function Chat({ settings }: { settings: Settings }) {
     setPicking(false)
     try {
       const result = await sendToActiveTab<DrawResult>({ type: 'START_DRAW' })
-      if (!('cancelled' in result)) {
-        setDrawing(result)
-        // Composite is computed once here, then shared with the chat transport
-        // through state — the preview shows exactly what the model will see.
-        void enrichAndMerge(result)
-      }
+      if (!('cancelled' in result)) setDrawing(result)
     } catch (err) {
       console.warn('Picanthon scribble error:', err)
     } finally {
       setDrawingActive(false)
     }
-  }
-
-  async function enrichAndMerge(result: DrawnPayload) {
-    const enriched = await enrichWithComposite(result)
-    setDrawing((prev) =>
-      prev && prev.strokesPng === result.strokesPng ? enriched : prev,
-    )
   }
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -429,10 +416,9 @@ function SettingsPanel({
 }) {
   const [apiKey, setApiKey] = useState(settings.apiKey)
   const [model, setModel] = useState(settings.model)
-  const [designerModel, setDesignerModel] = useState(settings.designerModel)
 
   async function persist() {
-    const next: Settings = { apiKey, model, designerModel }
+    const next: Settings = { apiKey, model }
     await saveSettings(next)
     onSave(next)
   }
@@ -450,20 +436,11 @@ function SettingsPanel({
         />
       </label>
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        Agent model (cheap / loop)
+        Model (vision-capable)
         <input
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          placeholder="xai/grok-4.1-fast-reasoning"
-          className="rounded-md border border-input bg-background p-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        Designer model (optional — used for plan_design + design_component)
-        <input
-          value={designerModel}
-          onChange={(e) => setDesignerModel(e.target.value)}
-          placeholder="empty = same as agent model"
+          placeholder="anthropic/claude-sonnet-4.6"
           className="rounded-md border border-input bg-background p-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
         />
       </label>
@@ -474,7 +451,7 @@ function SettingsPanel({
         Guardar
       </button>
       <p className="text-[11px] text-muted-foreground">
-        ¿Sin key? Un agente mock aplica tweaks básicos para probar el flujo.
+        ¿Sin key? Modo mock para probar la UI. Un único modelo: hace 1 sola llamada por edición.
       </p>
     </section>
   )
