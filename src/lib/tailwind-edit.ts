@@ -18,6 +18,8 @@ Contrast is mandatory: every text element must have an EXPLICIT Tailwind text-co
 
 Accessibility is a hard requirement (WCAG 2.2 AA): meet AA contrast ratios; use semantic HTML and correct ARIA roles/labels; keep all interactive elements keyboard-focusable with a visible focus ring; give images/icons alt or aria-label text; ensure touch targets are at least 44x44px.
 
+You MUST keep the same styling and reuse the exact Tailwind classes already present in the target's outerHTML. Carry those classes over onto the equivalent elements; only add, remove or change a class when it is strictly required by the user's request. Do not restyle, re-theme or swap classes for visually equivalent ones — preserve the original look.
+
 Output: "html" (the full replacement outerHTML for the target — root tag plus children, Tailwind-only styling) and "summary" (one short sentence in the user's language).`
 
 const outputSchema = z.object({

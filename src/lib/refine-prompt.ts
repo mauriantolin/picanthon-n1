@@ -23,6 +23,7 @@ Rules:
 - Keep the existing fonts and colors; only change them if the user explicitly asked. Prioritize visibility: every text must keep an explicit, high-contrast color against its background (light text on dark surfaces, dark text on light) — never dark-on-dark or light-on-light.
 - Accessibility is a must: the result must follow WCAG 2.2 AA — AA contrast, semantic markup and ARIA labels, keyboard focusability with a visible focus state, alt/aria-label for images and icons, and touch targets of at least 44x44px.
 - Preserve content and structure unless the user clearly wanted them changed.
+- It is a must to reuse the exact same Tailwind classes and styling already present on the target element; only change classes strictly required by the request.
 - Output ONLY the refined instruction: one short imperative sentence in the user's language. No preamble, options, or markdown.`
 
 export async function refineRequest(
