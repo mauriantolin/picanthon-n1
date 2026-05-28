@@ -98,7 +98,7 @@ export function ToolInput({ input }: { input: unknown }) {
   return (
     <div className="px-3 py-2.5">
       <p className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">Input</p>
-      <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded bg-background p-2.5 font-mono text-[11px] leading-relaxed text-foreground">
+      <pre className="whitespace-pre-wrap break-words rounded bg-background p-2.5 font-mono text-[11px] leading-relaxed text-foreground">
         {JSON.stringify(input, null, 2)}
       </pre>
     </div>
@@ -121,7 +121,7 @@ export function ToolOutput({
   return (
     <div className="px-3 py-2.5">
       <p className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">Output</p>
-      <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded bg-background p-2.5 font-mono text-[11px] leading-relaxed text-foreground">
+      <pre className="whitespace-pre-wrap break-words rounded bg-background p-2.5 font-mono text-[11px] leading-relaxed text-foreground">
         {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
       </pre>
     </div>

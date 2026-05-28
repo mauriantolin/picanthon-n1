@@ -7,7 +7,7 @@ export function Response({ className, ...props }: ComponentProps<typeof Streamdo
   return (
     <Streamdown
       className={cn(
-        'size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-sm',
+        'w-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-sm',
         className,
       )}
       {...props}

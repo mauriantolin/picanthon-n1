@@ -35,11 +35,18 @@ export function Conversation({ className, children, ...props }: ComponentProps<'
     }
     el.addEventListener('scroll', onScroll, { passive: true })
 
-    // Re-stick whenever the content's height changes (collapse / expand /
-    // streamed text). Without this, an element that shrinks AFTER our render
-    // pass leaves an empty gap because we already scrolled relative to the
-    // taller previous height.
-    const ro = new ResizeObserver(() => stickToBottom())
+    // Re-stick only when the content SHRINKS. A shrink that happens after our
+    // render pass (e.g. Reasoning auto-collapsing when it finishes streaming)
+    // leaves an empty gap because we already scrolled relative to the taller
+    // height — re-sticking closes it. Growth is handled by the per-render
+    // effect below; force-sticking on growth would yank the viewport to the
+    // bottom when the user manually expands a tool, cutting off its top.
+    let lastHeight = el.firstElementChild?.scrollHeight ?? 0
+    const ro = new ResizeObserver(() => {
+      const height = el.firstElementChild?.scrollHeight ?? 0
+      if (height < lastHeight) stickToBottom()
+      lastHeight = height
+    })
     if (el.firstElementChild) ro.observe(el.firstElementChild)
 
     return () => {
