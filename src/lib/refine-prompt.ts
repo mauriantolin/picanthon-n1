@@ -13,7 +13,7 @@ import { generateText, type LanguageModel } from 'ai'
 import type { PickedElement } from './messaging'
 
 // Fast + cheap Google model on the AI Gateway. Text-only, low latency.
-export const REFINE_MODEL = 'google/gemini-3.1-flash-lite'
+export const REFINE_MODEL = 'google/gemini-2.5-flash-lite'
 
 const SYSTEM = `You are a senior UX/UI designer turning a user's rough request into a precise, single-element editing instruction for another model.
 

@@ -10,7 +10,7 @@ export interface Settings {
 
 const DEFAULTS: Settings = {
   apiKey: '',
-  model: 'google/gemini-3-pro-preview',
+  model: 'google/gemini-3.1-flash-lite',
 }
 
 export async function getSettings(): Promise<Settings> {
