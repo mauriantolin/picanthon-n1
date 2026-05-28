@@ -16,6 +16,8 @@ Treat the screenshot as the source of truth for the page's design system. The re
 
 Contrast is mandatory: every text element must have an EXPLICIT Tailwind text-color class that clearly contrasts with the background it sits on. Never leave text dark-on-dark or light-on-light, and never rely on inherited colors — on the page's dark surfaces use light text, on light surfaces use dark text.
 
+Accessibility is a hard requirement (WCAG 2.2 AA): meet AA contrast ratios; use semantic HTML and correct ARIA roles/labels; keep all interactive elements keyboard-focusable with a visible focus ring; give images/icons alt or aria-label text; ensure touch targets are at least 44x44px.
+
 Output: "html" (the full replacement outerHTML for the target — root tag plus children, Tailwind-only styling) and "summary" (one short sentence in the user's language).`
 
 const outputSchema = z.object({

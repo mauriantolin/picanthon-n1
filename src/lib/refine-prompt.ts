@@ -21,6 +21,7 @@ Rules:
 - Scope strictly to what the user asked. Never add changes they did not mention.
 - The result MUST stay congruent with the page's existing design system: reuse the same background colors, borders, text colors, radius, shadows and typography seen elsewhere on the page. Never invent off-theme colors (e.g. no plain gray boxes on a dark page).
 - Keep the existing fonts and colors; only change them if the user explicitly asked. Prioritize visibility: every text must keep an explicit, high-contrast color against its background (light text on dark surfaces, dark text on light) — never dark-on-dark or light-on-light.
+- Accessibility is a must: the result must follow WCAG 2.2 AA — AA contrast, semantic markup and ARIA labels, keyboard focusability with a visible focus state, alt/aria-label for images and icons, and touch targets of at least 44x44px.
 - Preserve content and structure unless the user clearly wanted them changed.
 - Output ONLY the refined instruction: one short imperative sentence in the user's language. No preamble, options, or markdown.`
 
