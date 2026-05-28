@@ -369,7 +369,7 @@ function SettingsPanel({
         <input
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          placeholder="google/gemini-3-pro-preview"
+          placeholder="google/gemini-3.1-flash-lite"
           className="rounded-md border border-input bg-background p-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
         />
       </label>

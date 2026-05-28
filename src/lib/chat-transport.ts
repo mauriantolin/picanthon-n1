@@ -12,6 +12,7 @@ import { sendToActiveTab, type PickedElement } from './messaging'
 import type { Tweak, TweakResult } from './tweaks'
 import type { Settings } from './settings'
 import { runElementEdit } from './tailwind-edit'
+import { refineRequest, REFINE_MODEL } from './refine-prompt'
 import { estimateBase64Bytes, makeThumbnail } from './screenshot'
 
 // Getter (not a raw value) so the transport — which useChat caches across
@@ -73,8 +74,16 @@ class PicanthonChatTransport implements ChatTransport<PicanthonUIMessage> {
         })
 
         try {
+          const refineModel = buildModel(settings.apiKey, REFINE_MODEL)
+          const refined = await refineRequest(refineModel, pinned, userText, abortSignal)
+          console.info('[picanthon] refined request', {
+            refineModel: REFINE_MODEL,
+            raw: userText,
+            refined,
+          })
+
           const model = buildModel(settings.apiKey, settings.model)
-          const { result, bodyShot } = await runElementEdit(model, pinned, userText, abortSignal)
+          const { result, bodyShot } = await runElementEdit(model, pinned, refined, abortSignal)
 
           const tweak: Tweak = {
             op: 'replaceOuterHTML',
