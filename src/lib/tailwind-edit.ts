@@ -14,6 +14,8 @@ Inputs: a body screenshot, the target's current outerHTML, the user's request.
 
 Treat the screenshot as the source of truth for the page's design system. The rewritten element must look native to the page: reuse the same background colors, borders, text colors, corner radius, shadows, spacing and typography you can see around it. Match the page's theme (e.g. if the page is dark, use the page's dark surfaces — never plain off-theme gray boxes). Only change what the user asked; keep everything else visually consistent.
 
+Contrast is mandatory: every text element must have an EXPLICIT Tailwind text-color class that clearly contrasts with the background it sits on. Never leave text dark-on-dark or light-on-light, and never rely on inherited colors — on the page's dark surfaces use light text, on light surfaces use dark text.
+
 Output: "html" (the full replacement outerHTML for the target — root tag plus children, Tailwind-only styling) and "summary" (one short sentence in the user's language).`
 
 const outputSchema = z.object({
