@@ -151,7 +151,17 @@ function Chat({ settings }: { settings: Settings }) {
     setDrawingActive(false)
     try {
       const result = await sendToActiveTab<PickResult>({ type: 'START_PICK' })
-      if (!('cancelled' in result)) setPinned(result)
+      if ('cancelled' in result) {
+        console.info('[picanthon/picker] cancelled')
+      } else {
+        console.info('[picanthon/picker] picked', {
+          selector: result.selector,
+          tag: result.tag,
+          outerHtmlBytes: result.outerHTML.length,
+          bbox: result.boundingBox,
+        })
+        setPinned(result)
+      }
     } catch (err) {
       console.warn('Picanthon picker error:', err)
     } finally {

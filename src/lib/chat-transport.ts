@@ -12,6 +12,7 @@ import {
   sendToActiveTab,
   type DrawnPayload,
   type PickedElement,
+  type TailwindRuntimeResult,
 } from './messaging'
 import type { Tweak, TweakResult } from './tweaks'
 import type { Settings } from './settings'
@@ -46,6 +47,15 @@ class PicanthonChatTransport implements ChatTransport<PicanthonUIMessage> {
     const pinned = this.ctx.getPinned()
     const settings = this.settings
 
+    console.info('[picanthon/transport] sendMessages', {
+      userText,
+      hasPinned: !!pinned,
+      pinnedSelector: pinned?.selector,
+      pinnedTag: pinned?.tag,
+      pinnedOuterHtmlBytes: pinned?.outerHTML.length,
+      model: settings.model,
+    })
+
     return createUIMessageStream<PicanthonUIMessage>({
       execute: async ({ writer }) => {
         const textId = crypto.randomUUID()
@@ -53,6 +63,7 @@ class PicanthonChatTransport implements ChatTransport<PicanthonUIMessage> {
         writer.write({ type: 'text-start', id: textId })
 
         if (!pinned) {
+          console.warn('[picanthon/transport] no pinned target — asking user to pick')
           writer.write({
             type: 'text-delta',
             id: textId,
@@ -76,9 +87,23 @@ class PicanthonChatTransport implements ChatTransport<PicanthonUIMessage> {
           input: toolInput,
         })
 
+        const tTurn = performance.now()
+        // Kick off the Tailwind runtime injection in parallel with the LLM
+        // call — it usually finishes long before the model responds, so the
+        // tweak can apply immediately without an extra serial round trip.
+        const runtimeP = sendToActiveTab<TailwindRuntimeResult>({
+          type: 'ENSURE_TAILWIND_RUNTIME',
+        }).catch((err) => {
+          console.warn('[picanthon/transport] ensure runtime failed', err)
+          return { ok: false, error: String(err) } as TailwindRuntimeResult
+        })
+
         try {
           const model = buildModel(settings.apiKey, settings.model)
           const { result } = await runTailwindEdit(model, pinned, userText, abortSignal)
+
+          const runtime = await runtimeP
+          console.info('[picanthon/transport] tailwind runtime status', runtime)
 
           const tweak: Tweak = {
             op: 'setAttr',
@@ -86,11 +111,18 @@ class PicanthonChatTransport implements ChatTransport<PicanthonUIMessage> {
             name: 'class',
             value: result.newClasses,
           }
+          console.info('[picanthon/transport] applying tweak', tweak)
+
           const tweakResults = await sendToActiveTab<TweakResult[]>({
             type: 'APPLY_TWEAKS',
             tweaks: [tweak],
           })
           const applied = tweakResults.reduce((n, r) => n + r.matched, 0)
+          console.info('[picanthon/transport] tweak applied', {
+            applied,
+            results: tweakResults,
+            totalMs: Math.round(performance.now() - tTurn),
+          })
 
           const toolOutput: PicanthonTools['edit_tailwind']['output'] = {
             selector: result.selector,
@@ -105,13 +137,22 @@ class PicanthonChatTransport implements ChatTransport<PicanthonUIMessage> {
             output: toolOutput,
           })
 
-          const tail =
+          const noMatchTail =
             applied === 0
               ? `\n\n(El selector \`${result.selector}\` no matcheó ningún elemento. Probá repickear el target.)`
               : ''
-          writer.write({ type: 'text-delta', id: textId, delta: result.summary + tail })
+          const runtimeTail =
+            runtime && !runtime.ok
+              ? `\n\n(⚠️ No pude inyectar el runtime de Tailwind: ${runtime.error ?? 'unknown'}. Si las clases nuevas no son utilities estándar puede que no rendericen.)`
+              : ''
+          writer.write({
+            type: 'text-delta',
+            id: textId,
+            delta: result.summary + noMatchTail + runtimeTail,
+          })
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
+          console.error('[picanthon/transport] edit failed', err)
           writer.write({
             type: 'tool-output-error',
             toolCallId,

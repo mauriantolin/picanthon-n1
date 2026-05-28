@@ -1,16 +1,16 @@
-// One-shot Tailwind edit: ONE LLM call that takes a body screenshot + the
+// One-shot Tailwind edit: ONE LLM call that takes a FULL-page screenshot + the
 // picked element's outerHTML (already Tailwind-styled) and returns the new
 // class string for that element. No agent loop, no tool-call round trips.
 
 import { generateText, Output, type LanguageModel } from 'ai'
 import { z } from 'zod'
 import type { PickedElement } from './messaging'
-import { captureActiveTab, type Screenshot } from './screenshot'
+import { captureFullPage, type Screenshot } from './screenshot'
 
 const SYSTEM = `You are a senior UI engineer editing a live web page styled exclusively with Tailwind.
 
 You receive:
-1. A screenshot of the page body — read the existing design system from it (palette, type scale, spacing density, radius, border weight).
+1. A FULL-page screenshot of the body — read the existing design system from it (palette, type scale, spacing density, radius, border weight). The image may span more than one viewport — assume that is the whole page.
 2. The outerHTML of ONE picked target element, including its current Tailwind class string.
 3. The user's free-form request.
 
@@ -47,38 +47,73 @@ export function extractClassAttr(outerHTML: string): string {
   return m ? m[1] : ''
 }
 
+function estimateBytes(b64: string): number {
+  return Math.floor((b64.length * 3) / 4)
+}
+
 export async function runTailwindEdit(
   model: LanguageModel,
   pinned: PickedElement,
   request: string,
   abortSignal?: AbortSignal,
 ): Promise<TailwindEditOutcome> {
-  const bodyShot = await captureActiveTab().catch(() => null)
+  console.group('[picanthon/edit] runTailwindEdit')
+  console.info('[picanthon/edit] input', {
+    request,
+    selector: pinned.selector,
+    tag: pinned.tag,
+    outerHtmlBytes: pinned.outerHTML.length,
+    bbox: pinned.boundingBox,
+  })
+
+  const tShot = performance.now()
+  const bodyShot = await captureFullPage().catch((err) => {
+    console.warn('[picanthon/edit] captureFullPage threw, falling back to null', err)
+    return null
+  })
+  console.info('[picanthon/edit] full-page snapshot', {
+    ms: Math.round(performance.now() - tShot),
+    hasShot: !!bodyShot,
+    bytes: bodyShot ? estimateBytes(bodyShot.data) : 0,
+    mediaType: bodyShot?.mediaType,
+  })
+
   const oldClasses = extractClassAttr(pinned.outerHTML)
+  console.debug('[picanthon/edit] target html', {
+    oldClasses: oldClasses || '(empty)',
+    outerHTMLPreview: pinned.outerHTML.slice(0, 240) + (pinned.outerHTML.length > 240 ? '…' : ''),
+  })
 
   const userParts: Array<
     | { type: 'text'; text: string }
-    | { type: 'image'; image: string; mediaType: 'image/png' }
+    | { type: 'image'; image: string; mediaType: 'image/png' | 'image/jpeg' }
   > = []
 
   if (bodyShot) {
     userParts.push({
       type: 'image',
       image: `data:${bodyShot.mediaType};base64,${bodyShot.data}`,
-      mediaType: 'image/png',
+      mediaType: bodyShot.mediaType,
     })
+  } else {
+    console.warn('[picanthon/edit] proceeding WITHOUT screenshot — LLM will only see HTML')
   }
 
-  userParts.push({
-    type: 'text',
-    text:
-      `User request: ${request}\n\n` +
-      `Target selector: ${pinned.selector}\n` +
-      `Target tag: <${pinned.tag}>\n` +
-      `Current class attribute: ${oldClasses || '(empty)'}\n\n` +
-      `Target outerHTML:\n${pinned.outerHTML}`,
+  const userText =
+    `User request: ${request}\n\n` +
+    `Target selector: ${pinned.selector}\n` +
+    `Target tag: <${pinned.tag}>\n` +
+    `Current class attribute: ${oldClasses || '(empty)'}\n\n` +
+    `Target outerHTML:\n${pinned.outerHTML}`
+
+  userParts.push({ type: 'text', text: userText })
+
+  console.info('[picanthon/edit] LLM request', {
+    imageParts: userParts.filter((p) => p.type === 'image').length,
+    textChars: userText.length,
   })
 
+  const tCall = performance.now()
   const { output } = await generateText({
     model,
     system: SYSTEM,
@@ -86,7 +121,14 @@ export async function runTailwindEdit(
     messages: [{ role: 'user', content: userParts }],
     abortSignal,
   })
+  console.info('[picanthon/edit] LLM response', {
+    ms: Math.round(performance.now() - tCall),
+    newClassesBytes: output.classes.length,
+    newClasses: output.classes,
+    summary: output.summary,
+  })
 
+  console.groupEnd()
   return {
     result: {
       selector: pinned.selector,

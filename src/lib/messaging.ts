@@ -165,6 +165,48 @@ export interface CancelDrawMsg {
   type: 'CANCEL_DRAW'
 }
 
+// Full-page screenshot pipeline. The side panel orchestrates the loop
+// (chrome.tabs.captureVisibleTab is only callable from there); the content
+// script reports page dimensions and performs synchronized scrolls.
+export interface BeginFullCaptureMsg {
+  type: 'BEGIN_FULL_CAPTURE'
+}
+export interface ScrollToMsg {
+  type: 'SCROLL_TO'
+  y: number
+}
+export interface EndFullCaptureMsg {
+  type: 'END_FULL_CAPTURE'
+  restoreY: number
+}
+
+export interface FullCaptureDims {
+  pageWidth: number
+  pageHeight: number
+  viewportWidth: number
+  viewportHeight: number
+  originalScrollY: number
+}
+
+export interface ScrollToResult {
+  actualY: number
+}
+
+// Inject the Tailwind Play CDN once per page so the LLM can use ANY Tailwind
+// class (including arbitrary variants like `[&>ul]:grid`) — the page's
+// server-compiled CSS only contains the classes that were in the original
+// codebase, so without the runtime any novel utility we set via setAttr
+// would be a no-op.
+export interface EnsureTailwindRuntimeMsg {
+  type: 'ENSURE_TAILWIND_RUNTIME'
+}
+
+export interface TailwindRuntimeResult {
+  ok: boolean
+  alreadyPresent?: boolean
+  error?: string
+}
+
 // Re-inspect a set of selectors AFTER tweaks were applied. Returns the same
 // shape (layout + bbox + childCount + childSample) for each one. The model uses
 // this together with the screenshot to verify the change actually worked.
@@ -209,11 +251,59 @@ export type Message =
   | StartDrawMsg
   | CancelDrawMsg
   | CaptureAffectedMsg
+  | BeginFullCaptureMsg
+  | ScrollToMsg
+  | EndFullCaptureMsg
+  | EnsureTailwindRuntimeMsg
 
 // Sends a message to the content script of the active tab and resolves with its
-// response. Used by the agent's tools, which run in the side panel context.
+// response. If the content script isn't loaded yet (tab opened pre-install,
+// extension just updated, …) Chrome rejects with "Could not establish
+// connection. Receiving end does not exist." — in that case we inject the
+// content scripts on-demand via chrome.scripting and retry once.
 export async function sendToActiveTab<R = unknown>(msg: Message): Promise<R> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab?.id) throw new Error('No hay una pestaña activa para modificar.')
-  return chrome.tabs.sendMessage(tab.id, msg)
+  if (!isInjectableUrl(tab.url)) {
+    throw new Error(
+      `Esta pestaña no permite extensiones (${tab.url ?? 'URL desconocida'}). Abrí una página HTTP/HTTPS/file y reintentá.`,
+    )
+  }
+  try {
+    return (await chrome.tabs.sendMessage(tab.id, msg)) as R
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    if (!/Could not establish connection|Receiving end does not exist/i.test(message)) {
+      throw err
+    }
+    await ensureContentScript(tab.id)
+    return (await chrome.tabs.sendMessage(tab.id, msg)) as R
+  }
+}
+
+function isInjectableUrl(url: string | undefined): boolean {
+  if (!url) return true
+  return /^(https?:|file:)/i.test(url)
+}
+
+// Inject every content_script entry declared in the manifest into the target
+// tab. Idempotent enough in practice — re-injecting just re-runs the script,
+// which only adds another onMessage listener; that's fine because each
+// listener short-circuits when its branch doesn't match.
+async function ensureContentScript(tabId: number): Promise<void> {
+  const manifest = chrome.runtime.getManifest()
+  const scripts = manifest.content_scripts ?? []
+  for (const cs of scripts) {
+    if (!cs.js?.length) continue
+    const world = (cs as { world?: 'MAIN' | 'ISOLATED' }).world ?? 'ISOLATED'
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: cs.js,
+        world,
+      })
+    } catch (err) {
+      console.warn('[picanthon] ensureContentScript failed for', cs.js, err)
+    }
+  }
 }
