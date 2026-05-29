@@ -98,9 +98,20 @@ export interface PickedElement {
   text?: string
 }
 
-// Result returned from START_PICK: the picked element, or { cancelled: true }
-// if the user pressed ESC or the picker was cancelled programmatically.
+// Result delivered by PICK_RESULT after START_PICK: the picked element, or
+// { cancelled: true } if the user pressed ESC or the picker was cancelled
+// programmatically. START_PICK itself returns synchronously (just { ok })
+// so the message channel does not stay open for the full pick — hosts that
+// re-render aggressively (e.g. v0.dev) would otherwise tear it down.
 export type PickResult = PickedElement | { cancelled: true }
+
+// content → side panel push. Sent via chrome.runtime.sendMessage so the
+// side panel listens passively, regardless of how long the pick takes.
+export interface PickResultMsg {
+  type: 'PICK_RESULT'
+  result: PickResult
+  tabId?: number
+}
 
 // side panel -> content
 export interface GetSnapshotMsg {
@@ -121,6 +132,18 @@ export interface StartPickMsg {
 }
 export interface CancelPickMsg {
   type: 'CANCEL_PICK'
+}
+// Whole-page fallback when the user did not pick a target — the agent edits
+// in "free" mode and is allowed to touch any descendant of <body>.
+export interface GetBodyHTMLMsg {
+  type: 'GET_BODY_HTML'
+}
+
+export interface BodyHTMLResult {
+  url: string
+  title: string
+  bodyHTML: string
+  truncated: boolean
 }
 
 // Full-page screenshot pipeline. The side panel orchestrates the loop
@@ -206,6 +229,7 @@ export type Message =
   | ClearTweaksMsg
   | StartPickMsg
   | CancelPickMsg
+  | GetBodyHTMLMsg
   | CaptureAffectedMsg
   | BeginFullCaptureMsg
   | ScrollToMsg

@@ -1,17 +1,24 @@
-// One-shot Tailwind edit pipeline. With an API key:
-//   1. require a picked target (the picker is mandatory).
-//   2. run a single LLM call (body screenshot + outerHTML + user request →
-//      new Tailwind class string).
-//   3. apply the result as a single setAttr tweak on the target's selector.
+// One-shot edit pipeline. With an API key:
+//   1. Build the edit scope: a picked element when present, otherwise the
+//      full <body> HTML pulled from the active tab.
+//   2. Refine the user's request (preserving intent: add / replace / modify /
+//      delete / restyle).
+//   3. Run a single LLM call (body screenshot + scope HTML + refined request →
+//      a list of Tweak operations).
+//   4. Apply those tweaks via the existing APPLY_TWEAKS pipeline.
 // Without a key, falls back to a tiny deterministic mock.
 
 import { createUIMessageStream, type ChatTransport } from 'ai'
 import { buildModel } from './model'
 import type { PicanthonTools, PicanthonUIMessage } from './agent'
-import { sendToActiveTab, type PickedElement } from './messaging'
-import type { Tweak, TweakResult } from './tweaks'
+import {
+  sendToActiveTab,
+  type BodyHTMLResult,
+  type PickedElement,
+} from './messaging'
+import type { TweakResult } from './tweaks'
 import type { Settings } from './settings'
-import { runElementEdit } from './tailwind-edit'
+import { runElementEdit, type EditScope } from './tailwind-edit'
 import { refineRequest, REFINE_MODEL } from './refine-prompt'
 import { estimateBase64Bytes, makeThumbnail } from './screenshot'
 
@@ -49,62 +56,60 @@ class PicanthonChatTransport implements ChatTransport<PicanthonUIMessage> {
         writer.write({ type: 'start' })
         writer.write({ type: 'text-start', id: textId })
 
-        if (!pinned) {
-          writer.write({
-            type: 'text-delta',
-            id: textId,
-            delta:
-              'Necesito que elijas un elemento de la página con el picker (🎯) antes de aplicar un cambio.',
-          })
-          writer.write({ type: 'text-end', id: textId })
-          writer.write({ type: 'finish' })
-          return
-        }
-
         const toolCallId = crypto.randomUUID()
-        const toolInput: PicanthonTools['edit_element']['input'] = {
-          request: userText,
-          selector: pinned.selector,
-        }
-        writer.write({
-          type: 'tool-input-available',
-          toolCallId,
-          toolName: 'edit_element',
-          input: toolInput,
-        })
 
         try {
+          const scope = await buildScope(pinned)
+
+          const toolInput: PicanthonTools['edit_element']['input'] = {
+            request: userText,
+            scope: pinned
+              ? { mode: 'pinned', selector: pinned.selector, tag: pinned.tag }
+              : { mode: 'full-body', url: scope.url ?? '', title: scope.title ?? '' },
+          }
+          writer.write({
+            type: 'tool-input-available',
+            toolCallId,
+            toolName: 'edit_element',
+            input: toolInput,
+          })
+
           const refineModel = buildModel(settings.apiKey, REFINE_MODEL)
           const refined = await refineRequest(refineModel, pinned, userText, abortSignal)
           console.info('[picanthon] refined request', {
             refineModel: REFINE_MODEL,
             raw: userText,
             refined,
+            mode: pinned ? 'pinned' : 'full-body',
           })
 
           const model = buildModel(settings.apiKey, settings.model)
-          const { result, bodyShot } = await runElementEdit(model, pinned, refined, abortSignal)
+          const { result, bodyShot } = await runElementEdit(
+            model,
+            scope,
+            refined,
+            abortSignal,
+          )
 
-          const tweak: Tweak = {
-            op: 'replaceOuterHTML',
-            selector: result.selector,
-            html: result.newOuterHTML,
-          }
           const tweakResults = await sendToActiveTab<TweakResult[]>({
             type: 'APPLY_TWEAKS',
-            tweaks: [tweak],
+            tweaks: result.tweaks,
           })
           const applied = tweakResults.reduce((n, r) => n + r.matched, 0)
+          const unmatched = tweakResults
+            .filter((r) => r.matched === 0)
+            .map((r) => r.tweak.selector)
 
           const thumbnail = bodyShot
             ? await makeThumbnail(bodyShot.data, bodyShot.mediaType)
             : null
           console.info('[picanthon] edit_element result', {
             model: settings.model,
-            selector: result.selector,
-            oldOuterHTMLChars: result.oldOuterHTML.length,
-            newOuterHTMLChars: result.newOuterHTML.length,
+            mode: pinned ? 'pinned' : 'full-body',
+            tweakCount: result.tweaks.length,
+            tweakOps: result.tweaks.map((t) => t.op),
             applied,
+            unmatched,
             screenshotSentToLLM: bodyShot
               ? {
                   mediaType: bodyShot.mediaType,
@@ -122,7 +127,7 @@ class PicanthonChatTransport implements ChatTransport<PicanthonUIMessage> {
           })
 
           const toolOutput: PicanthonTools['edit_element']['output'] = {
-            selector: result.selector,
+            tweaks: result.tweaks.map((t) => ({ op: t.op, selector: t.selector })),
             applied,
             summary: result.summary,
             screenshot: thumbnail,
@@ -135,7 +140,11 @@ class PicanthonChatTransport implements ChatTransport<PicanthonUIMessage> {
 
           const tail =
             applied === 0
-              ? `\n\n(El selector \`${result.selector}\` no matcheó ningún elemento. Probá repickear el target.)`
+              ? `\n\n(Ningún selector propuesto matcheó. ${
+                  unmatched.length
+                    ? 'Probá repickear el target. Selectores: ' + unmatched.join(', ')
+                    : ''
+                })`
               : ''
           writer.write({ type: 'text-delta', id: textId, delta: result.summary + tail })
         } catch (err) {
@@ -169,6 +178,19 @@ class PicanthonChatTransport implements ChatTransport<PicanthonUIMessage> {
   }
 }
 
+async function buildScope(pinned: PickedElement | null): Promise<EditScope> {
+  if (pinned) {
+    return { pinned, bodyHTML: null, url: null, title: null }
+  }
+  const body = await sendToActiveTab<BodyHTMLResult>({ type: 'GET_BODY_HTML' })
+  return {
+    pinned: null,
+    bodyHTML: body.bodyHTML,
+    url: body.url,
+    title: body.title,
+  }
+}
+
 function lastUserText(messages: PicanthonUIMessage[]): string {
   const last = [...messages].reverse().find((m) => m.role === 'user')
   return (last?.parts ?? [])
@@ -193,7 +215,7 @@ class MockChatTransport implements ChatTransport<PicanthonUIMessage> {
           id,
           delta:
             `**Modo mock** (sin API key). Tu pedido: "${text || '(vacío)'}".\n\n` +
-            'Agregá tu API key del AI Gateway en **Settings** para que el agente edite las clases Tailwind del target picado.',
+            'Agregá tu API key del AI Gateway en **Settings** para que el agente edite la página.',
         })
         writer.write({ type: 'text-end', id })
         writer.write({ type: 'finish' })

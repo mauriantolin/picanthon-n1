@@ -5,7 +5,7 @@ import { getSettings, saveSettings, type Settings } from '@/lib/settings'
 import {
   sendToActiveTab,
   type PickedElement,
-  type PickResult,
+  type PickResultMsg,
 } from '@/lib/messaging'
 import { createChatTransport } from '@/lib/chat-transport'
 import type { PicanthonUIMessage } from '@/lib/agent'
@@ -126,6 +126,30 @@ function Chat({ settings }: { settings: Settings }) {
     return () => chrome.tabs?.onUpdated.removeListener(onTabUpdated)
   }, [])
 
+  // The content script pushes PICK_RESULT once the user clicks or hits Esc.
+  // We listen passively so START_PICK's reply channel can close immediately.
+  useEffect(() => {
+    function onPickResult(msg: unknown) {
+      if (!msg || typeof msg !== 'object' || (msg as { type?: string }).type !== 'PICK_RESULT')
+        return
+      const { result } = msg as PickResultMsg
+      setPicking(false)
+      if ('cancelled' in result) {
+        console.info('[picanthon/picker] cancelled')
+        return
+      }
+      console.info('[picanthon/picker] picked', {
+        selector: result.selector,
+        tag: result.tag,
+        outerHtmlBytes: result.outerHTML.length,
+        bbox: result.boundingBox,
+      })
+      setPinned(result)
+    }
+    chrome.runtime?.onMessage.addListener(onPickResult)
+    return () => chrome.runtime?.onMessage.removeListener(onPickResult)
+  }, [])
+
   async function togglePicker() {
     if (picking) {
       try {
@@ -138,21 +162,10 @@ function Chat({ settings }: { settings: Settings }) {
     }
     setPicking(true)
     try {
-      const result = await sendToActiveTab<PickResult>({ type: 'START_PICK' })
-      if ('cancelled' in result) {
-        console.info('[picanthon/picker] cancelled')
-      } else {
-        console.info('[picanthon/picker] picked', {
-          selector: result.selector,
-          tag: result.tag,
-          outerHtmlBytes: result.outerHTML.length,
-          bbox: result.boundingBox,
-        })
-        setPinned(result)
-      }
+      await sendToActiveTab({ type: 'START_PICK' })
+      // Result arrives via the PICK_RESULT listener above.
     } catch (err) {
       console.warn('Picanthon picker error:', err)
-    } finally {
       setPicking(false)
     }
   }
@@ -173,7 +186,7 @@ function Chat({ settings }: { settings: Settings }) {
           {messages.length === 0 && (
             <ConversationEmptyState
               title="Pedime que modifique esta página"
-              description='Probá: "fondo oscuro", "resaltar títulos", "ocultar imágenes".'
+              description='Picker opcional. Probá: "agregá un banner arriba", "ocultá el footer", "el botón rojo más grande", "fondo oscuro".'
             />
           )}
 
@@ -249,7 +262,11 @@ function Chat({ settings }: { settings: Settings }) {
         <PromptInputTextarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Describí un cambio…"
+          placeholder={
+            pinned
+              ? 'Describí qué hacer con el target: cambiar, agregar al lado, modificar una parte…'
+              : 'Describí un cambio en la página. (Picker opcional)'
+          }
         />
         <PromptInputToolbar>
           <span className="text-[11px] text-muted-foreground">

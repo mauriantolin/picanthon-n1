@@ -38,13 +38,33 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
       return true
 
     case 'START_PICK':
-      startPick().then(sendResponse)
-      return true
+      // Resolve synchronously so the message channel does not stay open for
+      // the entire pick. The result is delivered later via a PICK_RESULT push.
+      startPick().then((result) => {
+        chrome.runtime.sendMessage({ type: 'PICK_RESULT', result }).catch(() => {
+          // Side panel may be closed — that's fine, the pick is just dropped.
+        })
+      })
+      sendResponse({ ok: true })
+      return false
 
     case 'CANCEL_PICK':
       cancelPick()
       sendResponse({ ok: true })
       return true
+
+    case 'GET_BODY_HTML': {
+      const MAX_BODY = 400_000
+      const raw = document.body?.outerHTML ?? ''
+      const truncated = raw.length > MAX_BODY
+      sendResponse({
+        url: location.href,
+        title: document.title,
+        bodyHTML: truncated ? raw.slice(0, MAX_BODY) + '\n<!-- [truncated] -->' : raw,
+        truncated,
+      })
+      return true
+    }
 
     case 'CAPTURE_AFFECTED':
       sendResponse(captureAffected(msg.selectors))
